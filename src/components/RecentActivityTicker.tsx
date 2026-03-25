@@ -23,12 +23,14 @@ export const RecentActivityTicker = ({ activities, children }: { activities: Act
   // If we have 3 or fewer items, they fit in the container without scrolling
   const needsScroll = recent10.length > 3;
   
-  // Duplicate activities to create a seamless loop if scrolling is needed
-  const displayActivities = needsScroll ? [...recent10, ...recent10] : recent10;
+  // No longer duplicating activities for seamless loop as per user request "ไม่วน"
+  const displayActivities = recent10;
   
   // Each item is 32px tall (h-8). 3 items visible = 96px container height.
   const itemHeight = 32;
-  const scrollDistance = recent10.length * itemHeight;
+  const visibleCount = 3;
+  // Scroll distance is the total height minus the visible area
+  const scrollDistance = Math.max(0, (recent10.length - visibleCount) * itemHeight);
 
   // Find the latest time to highlight (by minute)
   const formatTime = (dateStr: string) => new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -37,16 +39,19 @@ export const RecentActivityTicker = ({ activities, children }: { activities: Act
   // State to manage animation
   const [isPaused, setIsPaused] = useState(false);
   const [animationKey, setAnimationKey] = useState(0);
+  const [showAlert, setShowAlert] = useState(false);
 
-  // Pause animation when new items arrive
+  // Trigger alert and pause animation when new items arrive
   useEffect(() => {
     if (recent10.length > 0) {
       setIsPaused(true);
-      setAnimationKey(prev => prev + 1); // Reset animation
+      setShowAlert(true);
+      setAnimationKey(prev => prev + 1); // Reset animation to top
       
       const timer = setTimeout(() => {
         setIsPaused(false);
-      }, 5000); // Pause for 5 seconds
+        setShowAlert(false);
+      }, 5000); // Alert and pause for 5 seconds
       
       return () => clearTimeout(timer);
     }
@@ -64,14 +69,46 @@ export const RecentActivityTicker = ({ activities, children }: { activities: Act
         </div>
         
         <div className="h-[96px] bg-white rounded-2xl border border-stone-200 overflow-hidden relative shadow-sm">
+          {/* Red Alert Graphic - Subtle Glowing Border */}
+          {showAlert && (
+            <div className="absolute inset-0 pointer-events-none z-20">
+              <svg className="absolute inset-0 w-full h-full rounded-2xl overflow-visible">
+                <defs>
+                  <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+                </defs>
+                <motion.rect
+                  x="1" y="1" width="calc(100% - 2px)" height="calc(100% - 2px)"
+                  rx="15" fill="none"
+                  stroke="#ef4444" strokeWidth="2"
+                  strokeOpacity="0.4"
+                  strokeDasharray="100 250"
+                  filter="url(#glow)"
+                  animate={{ strokeDashoffset: [0, -1000] }}
+                  transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
+                />
+              </svg>
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: [0, 0.05, 0] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                className="absolute inset-0 bg-red-500 rounded-2xl"
+              />
+            </div>
+          )}
+
           <div className="relative h-full flex-1 overflow-hidden">
             <motion.div
               key={animationKey}
+              initial={{ y: 0 }}
               animate={needsScroll && !isPaused ? { y: [0, -scrollDistance] } : { y: 0 }}
               transition={needsScroll && !isPaused ? { 
-                duration: activities.length * 2.5, // Slightly slower for better readability
+                duration: recent10.length * 2.5, 
                 ease: "linear",
-                repeat: Infinity
+                repeat: Infinity,
+                repeatDelay: 5 // Pause for 5 seconds at the start/end before jumping back
               } : {}}
               className="absolute top-0 left-0 right-0 flex flex-col"
             >
