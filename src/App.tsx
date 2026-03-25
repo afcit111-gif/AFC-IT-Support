@@ -852,12 +852,26 @@ export default function App() {
     return ['All', ...Array.from(times)].sort(sortPlanLoad);
   }, [vehicles]);
 
-  const isDelayed = (planLoad: string, checkIn?: string) => {
-    if (!checkIn) return false;
-    // Simple delay check: if checkIn is > 30 mins after planLoad
-    // For demo, we'll just compare the time strings if they are in HH:mm format
-    // But real logic would parse dates.
-    return false; // Placeholder for real delay logic
+  const getDelayStatus = (deliveryDate: string, planLoad: string, checkIn?: string | null) => {
+    if (!planLoad || !deliveryDate || !planLoad.includes(':') || !deliveryDate.includes('-')) return null;
+    
+    const [year, month, day] = deliveryDate.split('-').map(Number);
+    const [hours, minutes] = planLoad.split(':').map(Number);
+    
+    if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(hours) || isNaN(minutes)) return null;
+
+    const planTime = new Date(year, month - 1, day, hours, minutes, 0, 0);
+    
+    const compareTime = checkIn ? new Date(checkIn) : new Date();
+    
+    const diffMs = compareTime.getTime() - planTime.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins > 0) {
+      return { status: 'Delay', mins: diffMins };
+    } else {
+      return { status: 'On Time', mins: Math.abs(diffMins) };
+    }
   };
 
   const stats = useMemo(() => {
@@ -1466,15 +1480,26 @@ export default function App() {
                                 : 0;
 
                               return (
-                                <div className="flex items-center gap-6">
-                                  <div>
+                                <div className="grid grid-cols-4 gap-4">
+                                  <div className="border-r border-white/10 pr-4">
                                     <p className="text-4xl font-black text-white">{avgTime}</p>
                                     <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Avg Mins / Vehicle</p>
                                   </div>
-                                  <div className="h-10 w-px bg-white/20" />
-                                  <div>
+                                  <div className="border-r border-white/10 pr-4">
                                     <p className="text-4xl font-black text-white">{completedVehicles.length}</p>
                                     <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Total Handled</p>
+                                  </div>
+                                  <div className="border-r border-white/10 pr-4">
+                                    <p className="text-4xl font-black text-emerald-400">
+                                      {latestVehicles.filter(v => v.status !== 'Waiting' && getDelayStatus(v.deliveryDate, v.planLoad, v.checkIn)?.status === 'On Time').length}
+                                    </p>
+                                    <p className="text-[10px] font-bold text-emerald-400/70 uppercase tracking-widest">On Time</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-4xl font-black text-red-400">
+                                      {latestVehicles.filter(v => v.status !== 'Waiting' && getDelayStatus(v.deliveryDate, v.planLoad, v.checkIn)?.status === 'Delay').length}
+                                    </p>
+                                    <p className="text-[10px] font-bold text-red-400/70 uppercase tracking-widest">Delayed</p>
                                   </div>
                                 </div>
                               );
@@ -1729,7 +1754,9 @@ export default function App() {
                                         <td className="px-6 py-4 min-w-[140px]">
                           <div className="space-y-1.5">
                             <p className="text-sm font-bold text-indigo-600">{vehicle.deliveryDate}</p>
-                            <p className="text-sm font-medium text-stone-700">Plan: {vehicle.planLoad}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-stone-700">Plan: {vehicle.planLoad}</p>
+                            </div>
                             <div className="flex items-center gap-1.5">
                               <span className="text-[10px] font-black text-stone-400 uppercase tracking-tighter">SUB</span>
                               <span className="inline-block px-2.5 py-1 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 text-sm font-bold uppercase tracking-wider">
@@ -1738,7 +1765,7 @@ export default function App() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-6 py-4 min-w-[220px]">
                           <div className="flex items-center gap-3">
                             <div className="relative">
                               <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
@@ -1771,12 +1798,13 @@ export default function App() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="space-y-2 min-w-[160px]">
-                            <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center justify-between mb-1">
                               <span className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider whitespace-pre-line text-left flex flex-col items-start justify-center ${STATUS_COLORS[vehicle.status]}`}>
                                 {STATUS_LABELS[vehicle.status]}
                               </span>
                               <span className="text-base font-bold text-stone-600">{vehicle.percentage}%</span>
                             </div>
+                            
                             <div className="w-full bg-stone-100 rounded-full h-1.5 overflow-hidden">
                               <motion.div 
                                 initial={{ width: 0 }}
@@ -1787,6 +1815,20 @@ export default function App() {
                                 }`}
                               />
                             </div>
+
+                            {(() => {
+                              const delayStatus = getDelayStatus(vehicle.deliveryDate, vehicle.planLoad, vehicle.checkIn);
+                              if (!delayStatus) return null;
+                              return delayStatus.status === 'Delay' ? (
+                                <span className="px-2 py-1 rounded-md text-[10px] font-bold bg-red-100 text-red-600 whitespace-nowrap w-fit">
+                                  DELAY {delayStatus.mins}m
+                                </span>
+                              ) : (
+                                <span className="px-2 py-1 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-600 whitespace-nowrap w-fit">
+                                  ON TIME
+                                </span>
+                              );
+                            })()}
                           </div>
                         </td>
                         <td className="px-6 py-4 min-w-[120px]">
@@ -1849,12 +1891,6 @@ export default function App() {
                                 </div>
                               )}
                             </div>
-                            {isDelayed(vehicle.planLoad, vehicle.checkIn) && (
-                              <div className="flex items-center gap-1 text-red-500 text-sm font-bold animate-pulse">
-                                <AlertCircle size={14} />
-                                <span>DELAYED &gt; 30M</span>
-                              </div>
-                            )}
                           </div>
                         </td>
                       </motion.tr>
@@ -2275,20 +2311,38 @@ export default function App() {
                                   : 0;
 
                                 return (
-                                  <div className="grid grid-cols-2 gap-3 flex-1">
-                                    <div className="bg-stone-900 p-3 rounded-xl text-white relative overflow-hidden group flex flex-col justify-center">
-                                      <div className="absolute -right-2 -bottom-2 opacity-10 group-hover:scale-110 transition-transform">
-                                        <Clock size={36} />
+                                  <div className="grid grid-cols-4 gap-2 flex-1">
+                                    <div className="bg-stone-900 p-2.5 rounded-xl text-white relative overflow-hidden group flex flex-col justify-center border border-white/5">
+                                      <div className="absolute -right-1 -bottom-1 opacity-10 group-hover:scale-110 transition-transform">
+                                        <Clock size={32} />
                                       </div>
-                                      <p className="text-2xl font-black leading-none mb-1">{avgTime}</p>
-                                      <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">Avg Mins / Unit</p>
+                                      <p className="text-xl font-black leading-none mb-1">{avgTime}</p>
+                                      <p className="text-[8px] font-bold text-stone-400 uppercase tracking-wider">Avg Mins</p>
                                     </div>
-                                    <div className="bg-indigo-600 p-3 rounded-xl text-white relative overflow-hidden group flex flex-col justify-center">
-                                      <div className="absolute -right-2 -bottom-2 opacity-10 group-hover:scale-110 transition-transform">
-                                        <CheckCircle2 size={36} />
+                                    <div className="bg-indigo-600 p-2.5 rounded-xl text-white relative overflow-hidden group flex flex-col justify-center border border-white/5">
+                                      <div className="absolute -right-1 -bottom-1 opacity-10 group-hover:scale-110 transition-transform">
+                                        <CheckCircle2 size={32} />
                                       </div>
-                                      <p className="text-2xl font-black leading-none mb-1">{completed}</p>
-                                      <p className="text-[9px] font-bold text-indigo-200 uppercase tracking-wider">Total Handled</p>
+                                      <p className="text-xl font-black leading-none mb-1">{completed}</p>
+                                      <p className="text-[8px] font-bold text-indigo-200 uppercase tracking-wider">Handled</p>
+                                    </div>
+                                    <div className="bg-emerald-500 p-2.5 rounded-xl text-white relative overflow-hidden group flex flex-col justify-center border border-white/5">
+                                      <div className="absolute -right-1 -bottom-1 opacity-10 group-hover:scale-110 transition-transform">
+                                        <CheckCircle2 size={32} />
+                                      </div>
+                                      <p className="text-xl font-black leading-none mb-1">
+                                        {latestVehicles.filter(v => v.status !== 'Waiting' && getDelayStatus(v.deliveryDate, v.planLoad, v.checkIn)?.status === 'On Time').length}
+                                      </p>
+                                      <p className="text-[8px] font-bold text-emerald-100 uppercase tracking-wider">On Time</p>
+                                    </div>
+                                    <div className="bg-red-500 p-2.5 rounded-xl text-white relative overflow-hidden group flex flex-col justify-center border border-white/5">
+                                      <div className="absolute -right-1 -bottom-1 opacity-10 group-hover:scale-110 transition-transform">
+                                        <AlertCircle size={32} />
+                                      </div>
+                                      <p className="text-xl font-black leading-none mb-1">
+                                        {latestVehicles.filter(v => v.status !== 'Waiting' && getDelayStatus(v.deliveryDate, v.planLoad, v.checkIn)?.status === 'Delay').length}
+                                      </p>
+                                      <p className="text-[8px] font-bold text-red-100 uppercase tracking-wider">Delayed</p>
                                     </div>
                                   </div>
                                 );
@@ -2527,19 +2581,34 @@ export default function App() {
                                                   Last Updated: {v.invoiceReceiving ? new Date(v.invoiceReceiving).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                                                 </span>
                                               </div>
-                                              {!isCheckOut && (
-                                                <div className="flex items-center gap-1.5">
-                                                  <motion.div 
-                                                    animate={{ 
-                                                      scale: [1, 1.3, 1],
-                                                      opacity: [0.6, 1, 0.6]
-                                                    }}
-                                                    transition={{ duration: 2, repeat: Infinity }}
-                                                    className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_6px_rgba(99,102,241,0.6)]" 
-                                                  />
-                                                  <span className="text-[9px] font-bold text-indigo-600 uppercase tracking-widest">Active</span>
-                                                </div>
-                                              )}
+                                              <div className="flex flex-col items-end gap-1.5">
+                                                {!isCheckOut && (
+                                                  <div className="flex items-center gap-1.5">
+                                                    <motion.div 
+                                                      animate={{ 
+                                                        scale: [1, 1.3, 1],
+                                                        opacity: [0.6, 1, 0.6]
+                                                      }}
+                                                      transition={{ duration: 2, repeat: Infinity }}
+                                                      className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_6px_rgba(99,102,241,0.6)]" 
+                                                    />
+                                                    <span className="text-[9px] font-bold text-indigo-600 uppercase tracking-widest">Active</span>
+                                                  </div>
+                                                )}
+                                                {(() => {
+                                                  const delayStatus = getDelayStatus(v.deliveryDate, v.planLoad, v.checkIn);
+                                                  if (!delayStatus) return null;
+                                                  return delayStatus.status === 'Delay' ? (
+                                                    <span className="px-2 py-1 rounded-md text-[9px] font-bold bg-red-100 text-red-600 whitespace-nowrap">
+                                                      DELAY {delayStatus.mins}m
+                                                    </span>
+                                                  ) : (
+                                                    <span className="px-2 py-1 rounded-md text-[9px] font-bold bg-emerald-100 text-emerald-600 whitespace-nowrap">
+                                                      ON TIME
+                                                    </span>
+                                                  );
+                                                })()}
+                                              </div>
                                             </div>
                                           </motion.div>
                                         );
