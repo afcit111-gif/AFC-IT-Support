@@ -30,7 +30,8 @@ import {
   Maximize,
   Minimize,
   Table,
-  Activity
+  Activity,
+  Edit2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
@@ -97,6 +98,7 @@ export default function App() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showArchiveHistory, setShowArchiveHistory] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState<VehicleRecord | null>(null);
   const [metricsView, setMetricsView] = useState<'overview' | 'efficiency'>('overview');
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   const [confirm, setConfirm] = useState<{ 
@@ -236,6 +238,33 @@ export default function App() {
 
     try {
       await updateDoc(vehicleRef, updates);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'vehicles');
+    }
+  };
+
+  const handleEditDriver = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingVehicle) return;
+
+    const originalVehicle = vehicles.find(v => v.id === editingVehicle.id);
+    if (!originalVehicle) return;
+
+    let newRemark = originalVehicle.remark || '';
+    if (originalVehicle.driverName !== 'รอรถ' && originalVehicle.driverName !== editingVehicle.driverName) {
+      const changeNote = `เปลี่ยนคนขับจาก: ${originalVehicle.driverName}`;
+      newRemark = newRemark ? `${newRemark} | ${changeNote}` : changeNote;
+    }
+
+    try {
+      await updateDoc(doc(db, 'vehicles', editingVehicle.id), {
+        driverName: editingVehicle.driverName,
+        driverPhone: editingVehicle.driverPhone,
+        sub: editingVehicle.sub || 'Other',
+        remark: newRemark
+      });
+      showToast('Driver details updated successfully', 'success');
+      setEditingVehicle(null);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'vehicles');
     }
@@ -387,6 +416,7 @@ export default function App() {
         'Phone': v.driverPhone,
         'Vehicle': v.vehicleNumber,
         'Status': STATUS_LABELS[v.status],
+        'Remark': v.remark || '-',
         'Check-In': v.checkIn ? new Date(v.checkIn).toLocaleTimeString() : '-',
         'Document Received': v.invoiceReceiving ? new Date(v.invoiceReceiving).toLocaleTimeString() : '-',
         'Checking': v.checking ? new Date(v.checking).toLocaleTimeString() : '-',
@@ -808,6 +838,7 @@ export default function App() {
 
   const subOptions = useMemo(() => {
     const subs = new Set(vehicles.map(v => (v.sub || '').trim()).filter(Boolean));
+    subs.add('Other');
     return ['All', ...Array.from(subs)].sort();
   }, [vehicles]);
 
@@ -1086,6 +1117,89 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {/* Edit Driver Modal */}
+      <AnimatePresence>
+        {editingVehicle && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden"
+            >
+              <div className="px-8 py-6 border-b border-stone-100 flex items-center justify-between bg-stone-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="bg-indigo-600 w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                    <Edit2 size={20} />
+                  </div>
+                  <h2 className="text-xl font-bold text-stone-900">Edit Driver Details</h2>
+                </div>
+                <button 
+                  onClick={() => setEditingVehicle(null)}
+                  className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-full transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleEditDriver} className="p-8">
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-xs font-bold text-stone-400 uppercase tracking-widest mb-2">Driver Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editingVehicle.driverName}
+                      onChange={e => setEditingVehicle({...editingVehicle, driverName: e.target.value})}
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      placeholder="Driver full name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-stone-400 uppercase tracking-widest mb-2">Driver Phone</label>
+                    <input
+                      type="tel"
+                      value={editingVehicle.driverPhone}
+                      onChange={e => setEditingVehicle({...editingVehicle, driverPhone: e.target.value})}
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      placeholder="081xxxxxxx"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-stone-400 uppercase tracking-widest mb-2">Sub</label>
+                    <select
+                      value={editingVehicle.sub || 'Other'}
+                      onChange={e => setEditingVehicle({...editingVehicle, sub: e.target.value})}
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    >
+                      {subOptions.filter(opt => opt !== 'All').map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-8 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setEditingVehicle(null)}
+                    className="px-6 py-3 text-stone-500 font-bold hover:bg-stone-50 rounded-xl transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-3 bg-stone-900 text-white font-bold rounded-xl hover:bg-stone-800 transition-colors shadow-lg shadow-stone-200"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {showAddModal && (
@@ -1702,6 +1816,15 @@ export default function App() {
                         <td className="px-6 py-4 text-right">
                           <div className="flex flex-col gap-2 items-end">
                             <div className="flex items-center gap-2">
+                              {vehicle.status !== 'Check Out' && (
+                                <button
+                                  onClick={() => setEditingVehicle(vehicle)}
+                                  className="p-3 text-stone-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-2xl transition-all"
+                                  title="Edit Driver Details"
+                                >
+                                  <Edit2 size={18} />
+                                </button>
+                              )}
                               {vehicle.status !== 'Waiting' && (
                                 <button 
                                   onClick={() => handleStatusRevert(vehicle.id, vehicle.status)}
