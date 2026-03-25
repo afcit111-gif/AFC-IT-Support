@@ -1,0 +1,42 @@
+{
+  "entities": {
+    "Vehicle": {
+      "title": "Vehicle",
+      "description": "A vehicle record for the loading tracker",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "seqLoading": { "type": "number" },
+        "deliveryDate": { "type": "string" },
+        "tripC": { "type": "string" },
+        "trip": { "type": "string" },
+        "sub": { "type": "string" },
+        "planLoad": { "type": "string" },
+        "driverName": { "type": "string" },
+        "driverPhone": { "type": "string" },
+        "vehicleNumber": { "type": "string" },
+        "vehicleSub": { "type": "string" },
+        "vehiclePlan": { "type": "string" },
+        "status": { "type": "string" },
+        "checkIn": { "type": "string" },
+        "checking": { "type": "string" },
+        "handover": { "type": "string" },
+        "invoiceReceiving": { "type": "string" },
+        "checkOut": { "type": "string" },
+        "totalTime": { "type": "string" },
+        "percentage": { "type": "number" },
+        "remark": { "type": "string" },
+        "lastRevertedAt": { "type": "string" },
+        "lastRevertedBy": { "type": "string" },
+        "revertRemark": { "type": "string" }
+      },
+      "required": ["id", "seqLoading", "driverName", "status", "percentage"]
+    }
+  },
+  "firestore": {
+    "vehicles": {
+      "schema": "Vehicle",
+      "description": "Collection of vehicle records"
+    }
+  }
+}

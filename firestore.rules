@@ -1,0 +1,83 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: vehicles
+    // Document ID: string (e.g., "1", "2")
+    // Fields:
+    //   - id: string (required)
+    //   - seqLoading: number (required)
+    //   - deliveryDate: string
+    //   - tripC: string
+    //   - trip: string
+    //   - sub: string
+    //   - planLoad: string
+    //   - driverName: string (required)
+    //   - driverPhone: string
+    //   - vehicleNumber: string
+    //   - vehicleSub: string
+    //   - vehiclePlan: string
+    //   - status: string (required)
+    //   - percentage: number (required)
+    //   - checkIn: string (optional)
+    //   - checking: string (optional)
+    //   - handover: string (optional)
+    //   - invoiceReceiving: string (optional)
+    //   - checkOut: string (optional)
+    //   - totalTime: string (optional)
+    //   - remark: string
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "afc.it.111@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidVehicle(data) {
+      return data.keys().hasAll(['id', 'seqLoading', 'driverName', 'status', 'percentage']) &&
+             data.id is string &&
+             data.seqLoading is number &&
+             data.driverName is string && data.driverName.size() < 100 &&
+             data.status is string &&
+             data.percentage is number && data.percentage >= 0 && data.percentage <= 100;
+    }
+
+    match /vehicles/{vehicleId} {
+      // Allow all authenticated users to read the vehicle list
+      allow read: if isAuthenticated();
+      
+      // Allow authenticated users to create or update vehicles
+      // In a real app, we might restrict creation to admins, but for this tracker, 
+      // we'll allow it for now or seed it.
+      allow create: if isAuthenticated() && isValidVehicle(request.resource.data);
+      
+      // Allow updates if the data is valid
+      allow update: if isAuthenticated() && isValidVehicle(request.resource.data);
+      
+      // Allow authenticated users to delete vehicles
+      allow delete: if isAuthenticated();
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAdmin();
+    }
+
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}
