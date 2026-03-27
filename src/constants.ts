@@ -20,6 +20,15 @@ export const STATUS_ABBR: Record<Status, string> = {
   'Check Out': 'COT'
 };
 
+export const STATUS_THAI_LABELS: Record<Status, string> = {
+  'Waiting': 'รอดำเนินการ',
+  'Check In': 'เข้าพื้นที่',
+  'Invoice Receiving': 'รับเอกสาร',
+  'Checking': 'ตรวจสอบสินค้า',
+  'Handover': 'ส่งมอบสินค้า',
+  'Check Out': 'ออกพื้นที่'
+};
+
 export const STATUS_PERCENTAGES: Record<Status, number> = {
   'Waiting': 0,
   'Check In': 20,
@@ -57,13 +66,19 @@ export const STATUS_HEX_COLORS: Record<Status, string> = {
 };
 
 export const sortPlanLoad = (a: string, b: string) => {
+  if (a === 'All') return -1;
+  if (b === 'All') return 1;
+
   const timeA = new Date(`1970-01-01T${a}:00`).getTime();
   const timeB = new Date(`1970-01-01T${b}:00`).getTime();
   
+  if (isNaN(timeA)) return 1;
+  if (isNaN(timeB)) return -1;
+
   const isAPM = timeA >= new Date('1970-01-01T12:00:00').getTime();
   const isBPM = timeB >= new Date('1970-01-01T12:00:00').getTime();
 
-  if (isAPM && !isBPM) return 1; // PM comes after AM
-  if (!isAPM && isBPM) return -1; // AM comes before PM
+  if (isAPM && !isBPM) return -1; // PM comes before AM
+  if (!isAPM && isBPM) return 1; // AM comes after PM
   return timeA - timeB; // If both PM or both AM, sort chronologically
 };

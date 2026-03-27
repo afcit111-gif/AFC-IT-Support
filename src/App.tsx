@@ -45,6 +45,7 @@ import {
   STATUS_FLOW, 
   STATUS_LABELS, 
   STATUS_ABBR,
+  STATUS_THAI_LABELS,
   STATUS_PERCENTAGES, 
   STATUS_COLORS,
   STATUS_SOLID_COLORS,
@@ -986,6 +987,81 @@ export default function App() {
     return `${mins}m`;
   };
 
+  const getTurnaroundTime = (checkIn?: string | null, checkOut?: string | null) => {
+    if (!checkIn) return null;
+    const start = new Date(checkIn).getTime();
+    const end = checkOut ? new Date(checkOut).getTime() : Date.now();
+    return Math.floor((end - start) / 60000);
+  };
+
+  const getEfficiencyData = (v: VehicleRecord) => {
+    const { checkIn, invoiceReceiving, checking, handover, checkOut } = v;
+    
+    if (!checkIn || !invoiceReceiving || !checking || !handover || !checkOut) {
+      return { status: 'missing' };
+    }
+
+    const tCIN = new Date(checkIn).getTime();
+    const tIVR = new Date(invoiceReceiving).getTime();
+    const tCHK = new Date(checking).getTime();
+    const tHOV = new Date(handover).getTime();
+    const tCOT = new Date(checkOut).getTime();
+
+    if (tCIN > tIVR || tIVR > tCHK || tCHK > tHOV || tHOV > tCOT) {
+      return { status: 'error' };
+    }
+
+    const waiting = (tIVR - tCIN) / 60000;
+    const processing = (tCHK - tIVR) / 60000;
+    const checkingTime = (tHOV - tCHK) / 60000;
+    const postHandover = (tCOT - tHOV) / 60000;
+    const tat = (tCOT - tCIN) / 60000;
+
+    if (tat === 0) {
+      return { status: 'zero_tat' };
+    }
+
+    const active = processing + checkingTime + (postHandover <= 60 ? postHandover : 0);
+    const efficiency = Math.round((active / tat) * 100);
+
+    let insight = 'Normal';
+    if (postHandover > 120) {
+      insight = 'Overnight Delay';
+    } else if (waiting > 0.3 * tat) {
+      insight = 'High Waiting';
+    } else if (efficiency >= 80) {
+      insight = 'Good Performance';
+    }
+
+    let color = '';
+    let dotColor = '';
+    let emoji = '';
+    if (efficiency >= 80) {
+      color = 'text-emerald-500';
+      dotColor = 'bg-emerald-500';
+      emoji = '🟢';
+    } else if (efficiency >= 60) {
+      color = 'text-amber-500';
+      dotColor = 'bg-amber-500';
+      emoji = '🟡';
+    } else {
+      color = 'text-red-500';
+      dotColor = 'bg-red-500';
+      emoji = '🔴';
+    }
+
+    return {
+      status: 'valid',
+      efficiency,
+      active: Math.round(active),
+      tat: Math.round(tat),
+      insight,
+      color,
+      dotColor,
+      emoji
+    };
+  };
+
   const getDelayStatus = (deliveryDate: string, planLoad: string, checkIn?: string | null) => {
     if (!planLoad || !deliveryDate || !planLoad.includes(':') || !deliveryDate.includes('-')) return null;
     
@@ -1045,7 +1121,7 @@ export default function App() {
       list: [
         {
           label: 'TOTAL',
-          subLabel: '',
+          subLabel: 'ทั้งหมด',
           value: total,
           icon: Activity,
           color: 'text-white',
@@ -1055,7 +1131,7 @@ export default function App() {
         },
         ...STATUS_FLOW.map(status => ({
           label: STATUS_LABELS[status],
-          subLabel: '',
+          subLabel: STATUS_THAI_LABELS[status],
           value: statusCounts[status],
           icon: getStatusIcon(status),
           color: 'text-white',
@@ -1137,19 +1213,19 @@ export default function App() {
               </div>
 
               {/* Status Summary in Header */}
-              <div className="hidden lg:flex items-center gap-4 ml-4 overflow-x-auto no-scrollbar max-w-[400px] xl:max-w-none">
-                {stats.list.filter(s => s.label !== 'TOTAL').map((s, i) => (
-                  <div key={i} className="flex items-center gap-2.5 group shrink-0">
-                    <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform`}>
-                      <s.icon size={18} className={STATUS_COLORS[STATUS_FLOW[i]].split(' ')[1]} />
+              <div className="hidden lg:flex items-center gap-2 xl:gap-4 ml-4 flex-wrap xl:flex-nowrap">
+                {stats.list.map((s, i) => (
+                  <div key={i} className="flex items-center gap-1.5 xl:gap-2.5 group shrink-0">
+                    <div className={`w-8 h-8 xl:w-9 xl:h-9 rounded-xl ${s.bg} flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform shrink-0`}>
+                      <s.icon size={16} className={s.label === 'TOTAL' ? 'text-white' : STATUS_COLORS[STATUS_FLOW[i - 1]]?.split(' ')[1]} />
                     </div>
                     <div className="flex flex-col min-w-0">
                       <div className="flex items-baseline gap-1">
-                        <span className="text-lg font-black text-slate-900 leading-none">{s.value}</span>
-                        <span className="text-[9px] font-bold text-slate-400 leading-none">({s.percentage}%)</span>
+                        <span className="text-base xl:text-lg font-black text-slate-900 leading-none">{s.value}</span>
+                        <span className="text-[8px] xl:text-[9px] font-bold text-slate-400 leading-none">({s.percentage}%)</span>
                       </div>
                       <div className="flex flex-col mt-0.5">
-                        <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider leading-none truncate">{s.label}</span>
+                        <span className="text-[7px] xl:text-[8px] font-black text-slate-500 uppercase tracking-wider leading-none truncate">{s.label}</span>
                         <span className="text-[7px] font-bold text-slate-300 leading-none mt-0.5 truncate">{s.subLabel}</span>
                       </div>
                     </div>
@@ -1686,6 +1762,7 @@ export default function App() {
                                         </div>
                                         <div className="flex flex-col">
                                           <span className="text-xs font-black text-slate-700 leading-tight">{STATUS_LABELS[status]}</span>
+                                          <span className="text-[10px] font-bold text-slate-500 mt-0.5">{STATUS_THAI_LABELS[status]}</span>
                                         </div>
                                       </div>
                                       <span className="text-xs font-black text-slate-900">{count} <span className="text-slate-400 font-bold ml-1">({percentage}%)</span></span>
@@ -1954,7 +2031,6 @@ export default function App() {
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vehicle</span>
-                          <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">{vehicle.sub}</span>
                         </div>
                         <h3 className="text-xl font-black text-slate-900 tracking-tight leading-none">{vehicle.vehicleNumber}</h3>
                       </div>
@@ -1962,14 +2038,19 @@ export default function App() {
                     <div className="flex flex-col items-end gap-2">
                       <button 
                         onClick={() => handleStatusRevert(vehicle.id, vehicle.status)}
-                        className={`p-2 rounded-xl transition-all ${vehicle.status === 'Waiting' ? 'opacity-0 pointer-events-none' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
+                        className={`p-2 rounded-xl transition-all ${vehicle.status === 'Waiting' ? 'opacity-0 pointer-events-none' : vehicle.revertRemark ? 'text-red-500 hover:bg-red-50' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
                         title="Revert Status"
                       >
                         <RotateCcw size={18} className="rotate-180" />
                       </button>
+                      {vehicle.revertRemark && (
+                        <span className="text-[8px] font-black text-red-500 bg-red-50 px-1.5 py-0.5 rounded-md max-w-[80px] truncate" title={vehicle.revertRemark}>
+                          {vehicle.revertRemark}
+                        </span>
+                      )}
                       <button 
                         onClick={() => setEditingVehicle(vehicle)}
-                        className={`p-2 rounded-xl transition-all ${vehicle.status === 'Check Out' ? 'opacity-0 pointer-events-none' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
+                        className={`p-2 rounded-xl transition-all ${vehicle.status === 'Check Out' ? 'opacity-0 pointer-events-none' : vehicle.revertRemark ? 'text-red-500 hover:bg-red-50' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
                         title="Edit Details"
                       >
                         <Edit2 size={18} />
@@ -1977,24 +2058,38 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Driver Info */}
-                  <div className="px-6 py-4 bg-slate-50/50 border-y border-slate-100 flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 shadow-sm">
-                      <User size={20} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-slate-900 truncate">{vehicle.driverName}</p>
-                      <p className="text-xs font-medium text-slate-500 flex items-center gap-1">
-                        <Phone size={10} />
-                        {vehicle.driverPhone}
-                      </p>
-                    </div>
-                    {vehicle.tripC && (
-                      <div className="text-right">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Trip C</p>
-                        <p className="text-3xl font-black text-indigo-600">{vehicle.tripC}</p>
+                  {/* Driver & Trip Info */}
+                  <div className="px-6 py-4 bg-slate-50/50 border-y border-slate-100 flex flex-col gap-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex flex-col min-w-0">
+                        <p className="text-base font-black text-slate-900 leading-tight break-words flex items-center gap-1.5">
+                          <User size={12} className="text-indigo-500 shrink-0" />
+                          {vehicle.driverName}
+                        </p>
+                        <p className="text-sm font-bold text-slate-500 flex items-center gap-1.5 mt-1">
+                          <Phone size={12} className="text-indigo-500 shrink-0" />
+                          {vehicle.driverPhone}
+                        </p>
                       </div>
-                    )}
+                      <div className="text-right shrink-0">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">TRIP NUMBER</p>
+                        <p className="text-3xl font-black text-indigo-600 leading-none">{vehicle.tripC}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="pt-3 border-t border-slate-100/50 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">SUB</span>
+                        <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-md text-center border border-indigo-100/50 shadow-sm">
+                          {vehicle.sub}
+                        </span>
+                      </div>
+                      <div className="text-right min-w-0">
+                        <p className="text-[11px] font-bold text-slate-500 break-all leading-normal">
+                          {vehicle.trip}
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Progress & Status */}
@@ -2005,6 +2100,9 @@ export default function App() {
                         <div className={`inline-flex flex-col px-3 py-1.5 rounded-xl border ${STATUS_COLORS[vehicle.status]} border-current/10 shadow-sm`}>
                           <span className="text-xs font-black uppercase tracking-widest leading-tight">
                             {STATUS_LABELS[vehicle.status]}
+                          </span>
+                          <span className="text-[10px] font-bold mt-0.5 opacity-80 uppercase tracking-wider">
+                            {STATUS_THAI_LABELS[vehicle.status]}
                           </span>
                         </div>
                       </div>
@@ -2048,14 +2146,14 @@ export default function App() {
                         <span className="text-xs font-black text-slate-700">{vehicle.checkOut ? new Date(vehicle.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--:--'}</span>
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">EFF</span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">TAT</span>
                         {(() => {
-                          const delayStatus = getDelayStatus(vehicle.deliveryDate, vehicle.planLoad, vehicle.checkIn);
-                          if (!delayStatus || vehicle.status === 'Waiting') return <span className="text-xs font-black text-slate-300">N/A</span>;
-                          return delayStatus.status === 'Delay' ? (
-                            <span className="text-xs font-black text-red-500">{formatEfficiency(delayStatus.mins)}</span>
-                          ) : (
-                            <span className="text-xs font-black text-emerald-500">On Time</span>
+                          const tatMins = getTurnaroundTime(vehicle.checkIn, vehicle.checkOut);
+                          if (tatMins === null) return <span className="text-xs font-black text-slate-300">N/A</span>;
+                          return (
+                            <span className={`text-xs font-black ${vehicle.checkOut ? 'text-emerald-500' : 'text-red-500'}`}>
+                              {formatEfficiency(tatMins)}
+                            </span>
                           );
                         })()}
                       </div>
@@ -2652,14 +2750,14 @@ export default function App() {
                             className="w-full h-full flex flex-col"
                           >
                             {/* Table Header - Stays fixed at top */}
-                            <div className="z-10 bg-slate-900 text-white grid grid-cols-[80px_1fr_2fr_1.5fr_2fr_120px_140px] gap-6 px-10 py-5 text-[11px] font-black uppercase tracking-[0.25em] border-b border-slate-800 shrink-0">
+                            <div className="z-10 bg-slate-900 text-white grid grid-cols-[80px_1fr_2fr_1.5fr_2fr_140px_120px] gap-6 px-10 py-5 text-[11px] font-black uppercase tracking-[0.25em] border-b border-slate-800 shrink-0">
                               <div>Queue</div>
                               <div>Vehicle</div>
                               <div>Driver</div>
                               <div>Status</div>
-                              <div>Trip C & Sub</div>
+                              <div>Trip Number & Trip</div>
+                              <div>Turnaround Time</div>
                               <div>Last Updated</div>
-                              <div>Efficiency</div>
                             </div>
 
                             {/* Scrollable Body Container */}
@@ -2670,15 +2768,20 @@ export default function App() {
                                   .sort((a, b) => (vehicleQueues[a.id] || 999) - (vehicleQueues[b.id] || 999))
                                   .map((v, idx) => {
                                     const isCheckOut = v.status === 'Check Out';
-                                    const delayStatus = getDelayStatus(v.deliveryDate, v.planLoad, v.checkIn);
+                                    const effData = getEfficiencyData(v);
                                     
                                     return (
                                       <div 
                                         key={v.id} 
-                                        className={`grid grid-cols-[80px_1fr_2fr_1.5fr_2fr_120px_140px] gap-6 px-10 py-6 items-center transition-colors hover:bg-indigo-50/30 ${isCheckOut ? 'bg-emerald-50/40' : idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}
+                                        className={`grid grid-cols-[80px_1fr_2fr_1.5fr_2fr_140px_120px] gap-6 px-10 py-6 items-center transition-colors hover:bg-indigo-50/30 ${isCheckOut ? 'bg-emerald-50/40' : idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}
                                       >
-                                        <div className={`w-12 h-12 rounded-xl ${STATUS_SOLID_COLORS[v.status]} text-white flex items-center justify-center text-2xl font-black shadow-md`}>
-                                          {vehicleQueues[v.id] || '-'}
+                                        <div className={`w-14 h-14 rounded-xl ${STATUS_SOLID_COLORS[v.status]} text-white flex flex-col items-center justify-center shadow-md`}>
+                                          <span className="text-[10px] font-black opacity-70 leading-none mb-1">
+                                            {v.invoiceReceiving ? new Date(v.invoiceReceiving).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '--:--'}
+                                          </span>
+                                          <span className="text-2xl font-black leading-none">
+                                            {vehicleQueues[v.id] || '-'}
+                                          </span>
                                         </div>
                                         
                                         <div className="flex flex-col">
@@ -2698,6 +2801,9 @@ export default function App() {
                                             <span className="text-xs font-black uppercase tracking-widest leading-tight">
                                               {STATUS_LABELS[v.status]}
                                             </span>
+                                            <span className="text-[10px] font-bold mt-0.5 opacity-80 uppercase tracking-wider">
+                                              {STATUS_THAI_LABELS[v.status]}
+                                            </span>
                                           </div>
                                         </div>
                                         
@@ -2706,40 +2812,27 @@ export default function App() {
                                             {v.tripC || '-'}
                                           </span>
                                           <span className="text-xs font-bold text-slate-400 truncate mt-1">
-                                            {v.sub || '-'}
+                                            {v.trip || '-'}
                                           </span>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-2">
+                                          {(() => {
+                                            const tatMins = getTurnaroundTime(v.checkIn, v.checkOut);
+                                            if (tatMins === null) return <span className="text-sm font-bold text-slate-300">N/A</span>;
+                                            return (
+                                              <span className={`text-lg font-black ${v.checkOut ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                {formatEfficiency(tatMins)}
+                                              </span>
+                                            );
+                                          })()}
                                         </div>
                                         
                                         <div className="flex items-center gap-2 text-slate-500">
                                           <Clock size={16} />
-                                          <span className="text-sm font-bold tabular-nums">
+                                          <span className="text-base font-bold tabular-nums">
                                             {v.invoiceReceiving ? new Date(v.invoiceReceiving).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--:--'}
                                           </span>
-                                        </div>
-                                        
-                                        <div>
-                                          {delayStatus && (
-                                            delayStatus.status === 'Delay' ? (
-                                              <div className="flex flex-col gap-1">
-                                                <div className="flex items-center gap-2 bg-red-500/10 px-3 py-1.5 rounded-full border border-red-500/20 w-fit">
-                                                  <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                                                  <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">
-                                                    DELAY
-                                                  </span>
-                                                </div>
-                                                <span className="text-xs font-black text-red-600 ml-1">
-                                                  {formatEfficiency(delayStatus.mins)}
-                                                </span>
-                                              </div>
-                                            ) : (
-                                              <div className="flex items-center gap-2 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20 w-fit">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">
-                                                  ON TIME
-                                                </span>
-                                              </div>
-                                            )
-                                          )}
                                         </div>
                                       </div>
                                     );
