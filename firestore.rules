@@ -42,14 +42,16 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "afc.it.111@gmail.com" && request.auth.token.email_verified == true));
+        (
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+          (request.auth.token.email == "afc.it.111@gmail.com" && request.auth.token.email_verified == true)
+        );
     }
 
     function isValidVehicle(data) {
       return data.keys().hasAll(['id', 'seqLoading', 'driverName', 'status', 'percentage']) &&
              data.id is string &&
-             data.seqLoading is number &&
+             (data.seqLoading is number || data.seqLoading is string) &&
              data.driverName is string && data.driverName.size() < 100 &&
              data.status is string &&
              data.percentage is number && data.percentage >= 0 && data.percentage <= 100;
@@ -59,16 +61,12 @@ service cloud.firestore {
       // Allow all authenticated users to read the vehicle list
       allow read: if isAuthenticated();
       
-      // Allow authenticated users to create or update vehicles
-      // In a real app, we might restrict creation to admins, but for this tracker, 
-      // we'll allow it for now or seed it.
+      // Allow admins full access
+      allow write: if isAdmin();
+      
+      // Allow authenticated users to create or update vehicles if they pass validation
       allow create: if isAuthenticated() && isValidVehicle(request.resource.data);
-      
-      // Allow updates if the data is valid
       allow update: if isAuthenticated() && isValidVehicle(request.resource.data);
-      
-      // Allow authenticated users to delete vehicles
-      allow delete: if isAuthenticated();
     }
 
     match /users/{userId} {

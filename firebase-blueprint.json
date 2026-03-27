@@ -1,11 +1,24 @@
 {
   "entities": {
+    "Warehouse": {
+      "title": "Warehouse",
+      "description": "A warehouse location",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "location": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
     "Vehicle": {
       "title": "Vehicle",
       "description": "A vehicle record for the loading tracker",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "warehouseId": { "type": "string" },
         "seqLoading": { "type": "number" },
         "deliveryDate": { "type": "string" },
         "tripC": { "type": "string" },
@@ -30,10 +43,14 @@
         "lastRevertedBy": { "type": "string" },
         "revertRemark": { "type": "string" }
       },
-      "required": ["id", "seqLoading", "driverName", "status", "percentage"]
+      "required": ["id", "warehouseId", "seqLoading", "driverName", "status", "percentage"]
     }
   },
   "firestore": {
+    "warehouses": {
+      "schema": "Warehouse",
+      "description": "Collection of warehouse locations"
+    },
     "vehicles": {
       "schema": "Vehicle",
       "description": "Collection of vehicle records"

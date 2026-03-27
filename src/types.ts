@@ -1,7 +1,15 @@
 export type Status = 'Waiting' | 'Check In' | 'Invoice Receiving' | 'Checking' | 'Handover' | 'Check Out';
 
+export interface Warehouse {
+  id: string;
+  name: string;
+  location?: string;
+  createdAt?: string;
+}
+
 export interface VehicleRecord {
   id: string;
+  warehouseId: string;
   seqLoading: number;
   deliveryDate: string;
   tripC: string;

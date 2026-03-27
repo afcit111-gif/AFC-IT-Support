@@ -290,7 +290,7 @@ export default function App() {
     try {
       await updateDoc(vehicleRef, updates);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'vehicles');
+      handleFirestoreError(error, OperationType.UPDATE, `vehicles/${id}`);
     }
   };
 
@@ -317,7 +317,7 @@ export default function App() {
       showToast('Driver details updated successfully', 'success');
       setEditingVehicle(null);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'vehicles');
+      handleFirestoreError(error, OperationType.UPDATE, `vehicles/${editingVehicle.id}`);
     }
   };
 
@@ -363,7 +363,7 @@ export default function App() {
           showToast(`Status reverted to ${STATUS_LABELS[prevStatus]} successfully`);
           setConfirm(null);
         } catch (error) {
-          handleFirestoreError(error, OperationType.UPDATE, 'vehicles');
+          handleFirestoreError(error, OperationType.UPDATE, `vehicles/${id}`);
         }
       }
     });
@@ -401,7 +401,7 @@ export default function App() {
           await batch.commit();
           showToast(`${toArchive.length} records archived successfully`);
         } catch (error) {
-          handleFirestoreError(error, OperationType.UPDATE, 'vehicles');
+          handleFirestoreError(error, OperationType.UPDATE, 'vehicles/batch-archive');
         }
       }
     });
@@ -628,10 +628,11 @@ export default function App() {
       const newRecords: VehicleRecord[] = data.map((row, index) => {
         const planLoad = formatExcelTime(row['Plan Load']);
         const vehiclePlan = formatExcelTime(row['Vehicle Plan'] || row['Plan Load']);
+        const seq = row['Seq'] || row['Seq Loading'];
         
         return {
           id: `v-${Date.now()}-${index}`,
-          seqLoading: row['Seq'] || row['Seq Loading'] || index + 1,
+          seqLoading: typeof seq === 'number' ? seq : (parseInt(seq) || index + 1),
           deliveryDate: formatExcelDate(row['Delivery Date']),
           tripC: row['Trip C'] || '',
           trip: row['Trip'] || '',
@@ -659,7 +660,7 @@ export default function App() {
         await batch.commit();
         showToast(`Imported ${newRecords.length} vehicles successfully!`);
       } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, 'vehicles');
+        handleFirestoreError(error, OperationType.WRITE, 'vehicles/batch-import');
       }
     };
     reader.readAsBinaryString(file);
@@ -703,7 +704,7 @@ export default function App() {
         vehiclePlan: '18:30'
       });
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'vehicles');
+      handleFirestoreError(error, OperationType.WRITE, `vehicles/${id}`);
     }
   };
 
@@ -2282,7 +2283,7 @@ export default function App() {
                                   await batch.commit();
                                   showToast(`${toRestore.length} records restored successfully`);
                                 } catch (error) {
-                                  handleFirestoreError(error, OperationType.UPDATE, 'vehicles');
+                                  handleFirestoreError(error, OperationType.UPDATE, 'vehicles/batch-restore');
                                 }
                               }
                             });
@@ -2352,7 +2353,7 @@ export default function App() {
                                 await updateDoc(doc(db, 'vehicles', v.id), { isArchived: false, archivedAt: null });
                                 showToast('Record restored successfully');
                               } catch (error) {
-                                handleFirestoreError(error, OperationType.UPDATE, 'vehicles');
+                                handleFirestoreError(error, OperationType.UPDATE, `vehicles/${v.id}`);
                               }
                             }}
                             className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
@@ -2551,10 +2552,13 @@ export default function App() {
                     <div className="flex-1 overflow-hidden relative">
                       {(() => {
                         const activities = recentActivities.slice(0, 10);
+                        const latestTime = activities.length > 0 ? Math.max(...activities.map(a => a.time)) : 0;
+                        const latestMinute = Math.floor(latestTime / 60000);
+                        
                         return (
                           <div className="absolute top-0 left-0 right-0 p-4 space-y-2 animate-marquee-vertical-dashboard">
                             {[...activities, ...activities].map((activity, idx) => {
-                              const isNew = (Date.now() - activity.time) < 300000; // 5 minutes
+                              const isLatest = Math.floor(activity.time / 60000) === latestMinute;
                               const Icon = getStatusIcon(activity.status);
                               return (
                                 <div key={`${activity.vehicleNumber}-${idx}`} className="flex items-center gap-4 p-3 rounded-2xl bg-slate-50 border border-slate-100 hover:bg-white hover:shadow-md hover:border-indigo-100 transition-all group relative overflow-hidden">
@@ -2566,11 +2570,13 @@ export default function App() {
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center gap-2">
                                         <p className="text-base font-black text-slate-900 tracking-tight">{activity.vehicleNumber}</p>
-                                        {isNew && (
-                                          <span className="flex h-2 w-2 rounded-full bg-red-500 animate-ping" />
-                                        )}
                                       </div>
-                                      <span className="text-[10px] font-black text-slate-400 tabular-nums">{new Date(activity.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
+                                      <div className="flex items-center gap-1.5">
+                                        {isLatest && (
+                                          <span className="flex h-2 w-2 rounded-full bg-red-500 animate-ping shrink-0" />
+                                        )}
+                                        <span className="text-[10px] font-black text-slate-400 tabular-nums">{new Date(activity.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
+                                      </div>
                                     </div>
                                     <div className="flex items-center justify-between mt-1">
                                       <div className="flex flex-col">
