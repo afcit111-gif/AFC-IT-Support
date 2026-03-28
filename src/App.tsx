@@ -131,6 +131,12 @@ export default function App() {
       : null;
   }, [vehicles]);
 
+  const monitorFilteredVehicles = useMemo(() => {
+    return vehicles.filter(v => !v.isArchived);
+  }, [vehicles]);
+
+  const activeDates = useMemo(() => [...new Set(vehicles.map(v => v.deliveryDate))].sort((a, b) => new Date(b as string).getTime() - new Date(a as string).getTime()), [vehicles]);
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showArchiveHistory, setShowArchiveHistory] = useState(false);
@@ -250,6 +256,14 @@ export default function App() {
     if (currentIndex === -1 || currentIndex === STATUS_FLOW.length - 1) return;
 
     const nextStatus = STATUS_FLOW[currentIndex + 1];
+    
+    // Prevent moving to Invoice Receiving if Invoice Completed is not marked
+    const vehicle = vehicles.find(v => v.id === id);
+    if (nextStatus === 'Invoice Receiving' && vehicle && !vehicle.invoiceCompleted) {
+      showToast('Please mark "Invoice Completed" first', 'error');
+      return;
+    }
+
     const timestamp = new Date().toISOString();
     const percentage = STATUS_PERCENTAGES[nextStatus];
 
@@ -1251,9 +1265,11 @@ export default function App() {
       {/* Top Activity Ticker */}
       <RecentActivityTicker activities={activities} />
 
-      {/* Main Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-40 backdrop-blur-md bg-white/80">
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      {/* Sticky Top Section */}
+      <div className="sticky top-0 z-40 shadow-sm">
+        {/* Main Header */}
+        <header className="bg-white border-b border-slate-200 relative">
+          <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             {/* Logo & Search */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-8 flex-1">
@@ -1276,21 +1292,53 @@ export default function App() {
 
               {/* Status Summary in Header */}
               <div className="hidden lg:flex items-center gap-2 xl:gap-4 ml-4 flex-wrap xl:flex-nowrap">
-                {stats.list.map((s, i) => (
-                  <div key={i} className="flex items-center gap-1.5 xl:gap-2.5 group shrink-0">
-                    <div className={`w-8 h-8 xl:w-9 xl:h-9 rounded-xl ${s.bg} flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform shrink-0`}>
-                      <s.icon size={16} className={s.label === 'TOTAL' ? 'text-white' : STATUS_COLORS[STATUS_FLOW[i - 1]]?.split(' ')[1]} />
-                    </div>
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-base xl:text-lg font-black text-slate-900 leading-none">{s.value}</span>
-                      <div className="flex flex-col mt-1">
-                        <span className="text-[8px] xl:text-[9px] font-bold text-slate-400 leading-none mb-0.5">({s.percentage}%)</span>
-                        <span className="text-[7px] xl:text-[8px] font-black text-slate-500 uppercase tracking-wider leading-none truncate">{s.label}</span>
-                        <span className="text-[7px] font-bold text-slate-300 leading-none mt-0.5 truncate">{s.subLabel}</span>
+                {(() => {
+                  const total = filteredVehicles.length;
+                  const statusCounts = STATUS_FLOW.reduce((acc, status) => {
+                    acc[status] = filteredVehicles.filter(v => v.status === status).length;
+                    return acc;
+                  }, {} as Record<Status, number>);
+                  const getPercentage = (count: number) => total > 0 ? Math.round((count / total) * 100) : 0;
+
+                  const list = [
+                    {
+                      label: 'TOTAL',
+                      subLabel: 'ทั้งหมด',
+                      value: total,
+                      icon: Activity,
+                      color: 'text-white',
+                      bg: 'bg-slate-900',
+                      solidBg: 'bg-slate-900',
+                      percentage: 100
+                    },
+                    ...STATUS_FLOW.map(status => ({
+                      label: STATUS_LABELS[status],
+                      subLabel: STATUS_THAI_LABELS[status],
+                      value: statusCounts[status],
+                      icon: getStatusIcon(status),
+                      color: 'text-white',
+                      bg: STATUS_COLORS[status].split(' ')[0],
+                      solidBg: STATUS_SOLID_COLORS[status],
+                      percentage: getPercentage(statusCounts[status])
+                    }))
+                  ];
+
+                  return list.map((s, i) => (
+                    <div key={i} className="flex items-center gap-1.5 xl:gap-2.5 group shrink-0">
+                      <div className={`w-8 h-8 xl:w-9 xl:h-9 rounded-xl ${s.bg} flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform shrink-0`}>
+                        <s.icon size={16} className={s.label === 'TOTAL' ? 'text-white' : STATUS_COLORS[STATUS_FLOW[i - 1]]?.split(' ')[1]} />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-base xl:text-lg font-black text-slate-900 leading-none">{s.value}</span>
+                        <div className="flex flex-col mt-1">
+                          <span className="text-[8px] xl:text-[9px] font-bold text-slate-400 leading-none mb-0.5">({s.percentage}%)</span>
+                          <span className="text-[7px] xl:text-[8px] font-black text-slate-500 uppercase tracking-wider leading-none truncate">{s.label}</span>
+                          <span className="text-[7px] font-bold text-slate-300 leading-none mt-0.5 truncate">{s.subLabel}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ));
+                })()}
               </div>
             </div>
 
@@ -1342,9 +1390,9 @@ export default function App() {
         </div>
       </header>
 
-      {/* Controls Bar */}
-      <div className="bg-slate-50 border-b border-slate-200 sticky top-[89px] z-20">
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        {/* Controls Bar */}
+        <div className="bg-slate-50/95 backdrop-blur-md border-b border-slate-200 pt-4 pb-4">
+          <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
             {/* Filters */}
             <div className="flex flex-wrap items-center gap-3">
@@ -1436,19 +1484,27 @@ export default function App() {
                   className="flex items-center gap-2 bg-white border border-slate-200 text-slate-600 px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all"
                 >
                   <History size={16} className="text-slate-400" />
-                  History
+                  Upload History
+                </button>
+                <button
+                  onClick={handleArchiveAll}
+                  className="flex items-center gap-2 bg-white border border-slate-200 text-slate-600 px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all"
+                >
+                  <Archive size={16} className="text-slate-400" />
+                  Archive
                 </button>
                 <button
                   onClick={() => setShowArchiveHistory(true)}
-                  className="flex items-center gap-2 bg-white border border-slate-200 text-red-500 px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-red-50 hover:border-red-100 transition-all"
+                  className="flex items-center gap-2 bg-white border border-slate-200 text-slate-600 px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all"
                 >
                   <Archive size={16} />
-                  Archive
+                  Archive History
                 </button>
               </div>
             </div>
           </div>
         </div>
+      </div>
       </div>
 
 
@@ -1462,69 +1518,109 @@ export default function App() {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden"
             >
-              <div className="px-8 py-6 border-b border-stone-100 flex items-center justify-between bg-stone-50/50">
+              <div className="p-6 border-b border-stone-100 flex items-center justify-between bg-stone-50">
                 <div className="flex items-center gap-3">
-                  <div className="bg-indigo-600 w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                  <div className="bg-stone-900 p-2 rounded-lg text-white">
                     <Edit2 size={20} />
                   </div>
-                  <h2 className="text-xl font-bold text-stone-900">Edit Driver Details</h2>
+                  <h2 className="text-xl font-bold">Edit Driver Details</h2>
                 </div>
                 <button 
                   onClick={() => setEditingVehicle(null)}
-                  className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-full transition-colors"
+                  className="p-2 hover:bg-stone-200 rounded-full transition-colors"
                 >
                   <X size={20} />
                 </button>
               </div>
 
-              <form onSubmit={handleEditDriver} className="p-8">
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-xs font-bold text-stone-400 uppercase tracking-widest mb-2">Driver Name *</label>
-                    <input
-                      type="text"
-                      required
-                      value={editingVehicle.driverName}
-                      onChange={e => setEditingVehicle({...editingVehicle, driverName: e.target.value})}
-                      className="w-full bg-stone-50 border border-stone-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                      placeholder="Driver full name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-stone-400 uppercase tracking-widest mb-2">Driver Phone</label>
-                    <input
-                      type="tel"
-                      value={editingVehicle.driverPhone}
-                      onChange={e => setEditingVehicle({...editingVehicle, driverPhone: e.target.value})}
-                      className="w-full bg-stone-50 border border-stone-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                      placeholder="081xxxxxxx"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-stone-400 uppercase tracking-widest mb-2">Sub</label>
-                    <select
-                      value={editingVehicle.sub || 'Other'}
-                      onChange={e => setEditingVehicle({...editingVehicle, sub: e.target.value})}
-                      className="w-full bg-stone-50 border border-stone-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                    >
-                      {subOptions.filter(opt => opt !== 'All').map(opt => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
-                  </div>
+              <form onSubmit={handleEditDriver} className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-stone-500 uppercase tracking-widest">Driver Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingVehicle.driverName}
+                    onChange={e => setEditingVehicle({...editingVehicle, driverName: e.target.value})}
+                    className="w-full p-3 bg-stone-100 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    placeholder="Driver full name"
+                  />
                 </div>
-
-                <div className="mt-8 flex justify-end gap-3">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-stone-500 uppercase tracking-widest">Driver Phone</label>
+                  <input
+                    type="tel"
+                    value={editingVehicle.driverPhone}
+                    onChange={e => setEditingVehicle({...editingVehicle, driverPhone: e.target.value})}
+                    className="w-full p-3 bg-stone-100 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    placeholder="081xxxxxxx"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-stone-500 uppercase tracking-widest">Trip Code</label>
+                  <input
+                    type="text"
+                    value={editingVehicle.tripCode || ''}
+                    onChange={e => setEditingVehicle({...editingVehicle, tripCode: e.target.value})}
+                    className="w-full p-3 bg-stone-100 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    placeholder="e.g. C1"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-stone-500 uppercase tracking-widest">Vehicle Number *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingVehicle.vehicleNumber || ''}
+                    onChange={e => setEditingVehicle({...editingVehicle, vehicleNumber: cleanInput(e.target.value)})}
+                    className="w-full p-3 bg-stone-100 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    placeholder="e.g. กข1234"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-stone-500 uppercase tracking-widest">Delivery Date</label>
+                  <input
+                    type="date"
+                    value={editingVehicle.deliveryDate || ''}
+                    onChange={e => setEditingVehicle({...editingVehicle, deliveryDate: e.target.value})}
+                    className="w-full p-3 bg-stone-100 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-stone-500 uppercase tracking-widest">Plan Load Time</label>
+                  <select
+                    value={editingVehicle.planLoad || ''}
+                    onChange={e => setEditingVehicle({...editingVehicle, planLoad: e.target.value, vehiclePlan: e.target.value})}
+                    className="w-full p-3 bg-stone-100 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  >
+                    {timeOptions.filter(opt => opt !== 'All').map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-stone-500 uppercase tracking-widest">Sub</label>
+                  <select
+                    value={editingVehicle.sub || 'Other'}
+                    onChange={e => setEditingVehicle({...editingVehicle, sub: e.target.value})}
+                    className="w-full p-3 bg-stone-100 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  >
+                    {subOptions.filter(opt => opt !== 'All').map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="col-span-full mt-4 flex justify-end gap-3 border-t border-stone-100 pt-6">
                   <button
                     type="button"
                     onClick={() => setEditingVehicle(null)}
-                    className="px-6 py-3 text-stone-500 font-bold hover:bg-stone-50 rounded-xl transition-colors"
+                    className="px-6 py-3 text-stone-500 font-bold hover:bg-stone-200 rounded-xl transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-3 bg-stone-900 text-white font-bold rounded-xl hover:bg-stone-800 transition-colors shadow-lg shadow-stone-200"
+                    className="px-8 py-3 bg-stone-900 text-white font-bold rounded-xl hover:bg-stone-800 transition-colors shadow-lg shadow-stone-200"
                   >
                     Save Changes
                   </button>
@@ -1564,6 +1660,26 @@ export default function App() {
                     className="w-full p-3 bg-stone-100 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all"
                     value={newVehicle.deliveryDate}
                     onChange={e => setNewVehicle({...newVehicle, deliveryDate: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-stone-500 uppercase tracking-widest">Trip Code</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. C1"
+                    className="w-full p-3 bg-stone-100 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all"
+                    value={newVehicle.tripCode || ''}
+                    onChange={e => setNewVehicle({...newVehicle, tripCode: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-stone-500 uppercase tracking-widest">Trip Number</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Trip 1"
+                    className="w-full p-3 bg-stone-100 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all"
+                    value={newVehicle.tripNumber || ''}
+                    onChange={e => setNewVehicle({...newVehicle, tripNumber: e.target.value})}
                   />
                 </div>
                 <div className="space-y-2">
@@ -2497,13 +2613,10 @@ export default function App() {
       {/* Full Screen Dashboard Summary */}
       <AnimatePresence>
         {isFullScreenSummary && (() => {
-          const latestDate = vehicles.length > 0 
-            ? [...new Set(vehicles.map(v => v.deliveryDate))].sort((a, b) => new Date(b as string).getTime() - new Date(a as string).getTime())[0]
-            : null;
+          const allDates = [...new Set(vehicles.map(v => v.deliveryDate))].sort((a, b) => new Date(b as string).getTime() - new Date(a as string).getTime());
+          const latestDate = allDates.length > 0 ? allDates.join(', ') : null;
           
-          const latestVehicles = latestDate 
-            ? vehicles.filter(v => v.deliveryDate === latestDate)
-            : [];
+          const latestVehicles = vehicles;
 
           const recentActivities = latestVehicles.flatMap(v => {
             const activities = [];
@@ -2659,17 +2772,17 @@ export default function App() {
                     <div className="flex-1 overflow-hidden relative p-4" style={{ perspective: '1200px' }}>
                       <AnimatePresence mode="wait">
                         {(() => {
-                          const planLoads = [...new Set(latestVehicles.map(v => v.planLoad))].sort(sortPlanLoad);
-                          if (planLoads.length === 0) return null;
-                          const safeIndex = currentRoundIndex % planLoads.length;
-                          const plan = planLoads[safeIndex];
-                          const vehiclesInPlan = latestVehicles.filter(v => v.planLoad === plan);
+                          const activePlanGroups = [...new Set(monitorFilteredVehicles.map(v => `${v.deliveryDate}|${v.planLoad}`))].sort();
+                          if (activePlanGroups.length === 0) return null;
+                          const safeIndex = currentRoundIndex % activePlanGroups.length;
+                          const [date, plan] = activePlanGroups[safeIndex].split('|');
+                          const vehiclesInPlan = monitorFilteredVehicles.filter(v => `${v.deliveryDate}|${v.planLoad}` === activePlanGroups[safeIndex]);
                           const completed = vehiclesInPlan.filter(v => v.status === 'Check Out').length;
                           const total = vehiclesInPlan.length;
                           
                           return (
                             <motion.div 
-                              key={plan}
+                              key={activePlanGroups[safeIndex]}
                               initial={{ opacity: 0, rotateY: 90 }}
                               animate={{ opacity: 1, rotateY: 0 }}
                               exit={{ opacity: 0, rotateY: -90 }}
@@ -2677,17 +2790,24 @@ export default function App() {
                               className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm h-full flex flex-col"
                             >
                               <div className="flex items-center justify-between mb-6">
-                                <div className="flex flex-col">
-                                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.3em]">PLANLOAD</span>
-                                  <span className="text-2xl font-black text-slate-900 tracking-tighter leading-none">
-                                    {(() => {
-                                      const p = plan as string;
-                                      const [h] = p.split(':');
-                                      const hour = parseInt(h);
-                                      const ampm = hour >= 12 ? 'PM' : 'AM';
-                                      return `${p} ${ampm}`;
-                                    })()}
-                                  </span>
+                                <div className="flex items-center gap-4">
+                                  <div className="flex flex-col">
+                                    <span className="text-[7px] font-black text-slate-400 uppercase tracking-[0.3em]">PLANDATE</span>
+                                    <span className="text-lg font-black text-slate-900 tracking-tighter leading-none">{date}</span>
+                                  </div>
+                                  <div className="h-8 w-px bg-slate-200" />
+                                  <div className="flex flex-col">
+                                    <span className="text-[7px] font-black text-slate-400 uppercase tracking-[0.3em]">PLANLOAD</span>
+                                    <span className="text-lg font-black text-slate-900 tracking-tighter leading-none">
+                                      {(() => {
+                                        const p = plan as string;
+                                        const [h] = p.split(':');
+                                        const hour = parseInt(h);
+                                        const ampm = hour >= 12 ? 'PM' : 'AM';
+                                        return `${p} ${ampm}`;
+                                      })()}
+                                    </span>
+                                  </div>
                                 </div>
                                 <div className="px-3 py-1 bg-indigo-50 border border-indigo-100 rounded-lg">
                                   <span className="text-sm font-black text-indigo-600 tabular-nums">{completed}/{total}</span>
@@ -2753,7 +2873,12 @@ export default function App() {
                       <div className="flex flex-col">
                         <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.3em]">PLANDATE</span>
                         <div className="text-4xl font-black text-slate-900 tracking-tighter leading-none mb-2">
-                          {latestDate || '--/--/--'}
+                          {(() => {
+                            const activePlanGroups = [...new Set(monitorFilteredVehicles.map(v => `${v.deliveryDate}|${v.planLoad}`))].sort();
+                            const safeIndex = currentRoundIndex % activePlanGroups.length;
+                            const [date] = (activePlanGroups[safeIndex] || '--/--/--').split('|');
+                            return date;
+                          })()}
                         </div>
                       </div>
                       
@@ -2763,9 +2888,9 @@ export default function App() {
                         <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.3em]">PLANLOAD</span>
                         <div className="text-4xl font-black text-slate-900 tracking-tighter leading-none mb-2">
                           {(() => {
-                            const activePlanGroups = [...new Set(latestVehicles.map(v => v.planLoad))].sort(sortPlanLoad) as string[];
+                            const activePlanGroups = [...new Set(monitorFilteredVehicles.map(v => `${v.deliveryDate}|${v.planLoad}`))].sort();
                             const safeIndex = currentRoundIndex % activePlanGroups.length;
-                            const plan = activePlanGroups[safeIndex] || '--:--';
+                            const [, plan] = (activePlanGroups[safeIndex] || '--:--').split('|');
                             if (plan === '--:--') return plan;
                             const [h] = plan.split(':');
                             const hour = parseInt(h);
@@ -2774,7 +2899,7 @@ export default function App() {
                           })()}
                         </div>
                         {(() => {
-                          const activePlanGroups = [...new Set(latestVehicles.map(v => v.planLoad))].sort(sortPlanLoad) as string[];
+                          const activePlanGroups = [...new Set(monitorFilteredVehicles.map(v => `${v.deliveryDate}|${v.planLoad}`))].sort();
                           if (activePlanGroups.length <= 1) return null;
                           return (
                             <div className="flex items-center gap-1.5">
@@ -2810,7 +2935,7 @@ export default function App() {
                   <div ref={dashboardScrollRef} className="flex-1 overflow-hidden bg-white flex flex-col">
                     <AnimatePresence mode="wait">
                       {(() => {
-                        const activePlanGroups = [...new Set(latestVehicles.map(v => v.planLoad))].sort(sortPlanLoad);
+                        const activePlanGroups = [...new Set(monitorFilteredVehicles.map(v => `${v.deliveryDate}|${v.planLoad}`))].sort();
                         
                         if (activePlanGroups.length === 0) {
                           return (
@@ -2854,8 +2979,8 @@ export default function App() {
                             {/* Scrollable Body Container */}
                             <div className="flex-1 overflow-hidden relative">
                               <div className="scroll-content will-change-transform divide-y divide-slate-100">
-                                {latestVehicles
-                                  .filter(v => v.planLoad === plan)
+                                {monitorFilteredVehicles
+                                  .filter(v => `${v.deliveryDate}|${v.planLoad}` === plan)
                                   .sort((a, b) => (vehicleQueues[a.id] || 999) - (vehicleQueues[b.id] || 999))
                                   .map((v, idx) => {
                                     const isCheckOut = v.status === 'Check Out';
