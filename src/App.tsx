@@ -1,4 +1,6 @@
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Monitor as MonitorComponent } from './Monitor';
 import { 
   Search, 
   Filter, 
@@ -99,6 +101,11 @@ export default function App() {
   const [isFullScreenSummary, setIsFullScreenSummary] = useState(false);
   const [dashboardPlanFilter, setDashboardPlanFilter] = useState('All');
   const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
+  const location = useLocation();
+
+  if (location.pathname === '/monitor') return <MonitorComponent mode="tv" vehicles={vehicles} user={user} />;
+  if (location.pathname === '/monitor-mobile') return <MonitorComponent mode="mobile" vehicles={vehicles} user={user} />;
+
   const summaryRef = useRef<HTMLDivElement>(null);
   const handOverRef = useRef<HTMLDivElement>(null);
   const dashboardScrollRef = useRef<HTMLDivElement>(null);
@@ -2823,7 +2830,7 @@ export default function App() {
                           const activePlanGroups = [...new Set(monitorFilteredVehicles.map(v => `${v.deliveryDate}|${v.planLoad}`))].sort();
                           if (activePlanGroups.length === 0) return null;
                           const safeIndex = currentRoundIndex % activePlanGroups.length;
-                          const [date, plan] = activePlanGroups[safeIndex].split('|');
+                          const [date, plan] = ((activePlanGroups[safeIndex] as string) || '').split('|');
                           const vehiclesInPlan = monitorFilteredVehicles.filter(v => `${v.deliveryDate}|${v.planLoad}` === activePlanGroups[safeIndex]);
                           const completed = vehiclesInPlan.filter(v => v.status === 'Check Out').length;
                           const total = vehiclesInPlan.length;
@@ -2924,7 +2931,7 @@ export default function App() {
                           {(() => {
                             const activePlanGroups = [...new Set(monitorFilteredVehicles.map(v => `${v.deliveryDate}|${v.planLoad}`))].sort();
                             const safeIndex = currentRoundIndex % activePlanGroups.length;
-                            const [date] = (activePlanGroups[safeIndex] || '--/--/--').split('|');
+                            const [date] = ((activePlanGroups[safeIndex] as string) || '--/--/--').split('|');
                             return date;
                           })()}
                         </div>
@@ -2938,7 +2945,7 @@ export default function App() {
                           {(() => {
                             const activePlanGroups = [...new Set(monitorFilteredVehicles.map(v => `${v.deliveryDate}|${v.planLoad}`))].sort();
                             const safeIndex = currentRoundIndex % activePlanGroups.length;
-                            const [, plan] = (activePlanGroups[safeIndex] || '--:--').split('|');
+                            const [, plan] = ((activePlanGroups[safeIndex] as string) || '--:--').split('|');
                             if (plan === '--:--') return plan;
                             const [h] = plan.split(':');
                             const hour = parseInt(h);
