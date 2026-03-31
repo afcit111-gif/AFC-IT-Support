@@ -7,8 +7,10 @@ import {
   Truck, 
   User, 
   Phone, 
+  Smartphone, 
   AlertCircle,
   ChevronRight,
+  ChevronLeft,
   LayoutDashboard,
   LogOut,
   LogIn,
@@ -95,6 +97,7 @@ export default function App() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [viewMode, setViewMode] = useState<'mobile' | 'desktop' | null>(null);
   const [showSummary, setShowSummary] = useState(false);
   const [isFullScreenSummary, setIsFullScreenSummary] = useState(false);
   const [dashboardPlanFilter, setDashboardPlanFilter] = useState('All');
@@ -196,6 +199,9 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setIsAuthReady(true);
+      if (user) {
+        setViewMode(null);
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -240,6 +246,7 @@ export default function App() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      setViewMode(null);
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -1264,38 +1271,107 @@ export default function App() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-slate-50/50 font-sans text-slate-900 selection:bg-indigo-100 selection:text-indigo-900">
-      {/* Top Activity Ticker */}
-      <RecentActivityTicker activities={activities} />
+  if (!viewMode) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center p-4">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white p-10 rounded-3xl shadow-2xl max-w-2xl w-full text-center"
+        >
+          <div className="w-16 h-16 bg-indigo-100 hexagon flex items-center justify-center mx-auto mb-6">
+            <LayoutDashboard className="w-8 h-8 text-indigo-600" />
+          </div>
+          <h2 className="text-3xl font-black text-slate-900 mb-2 tracking-tighter">SELECT VIEW MODE</h2>
+          <p className="text-stone-500 mb-10">Choose how you want to experience the VehicleTracker</p>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <button 
+              onClick={() => setViewMode('mobile')}
+              className="group p-8 rounded-2xl border-2 border-slate-100 hover:border-indigo-500 hover:bg-indigo-50 transition-all text-center flex flex-col items-center gap-4"
+            >
+              <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
+                <Smartphone size={32} />
+              </div>
+              <div>
+                <span className="block text-xl font-black text-slate-900 tracking-tight">Mobile View</span>
+                <span className="text-sm text-slate-500">Optimized for smartphones</span>
+              </div>
+            </button>
+            <button 
+              onClick={() => setViewMode('desktop')}
+              className="group p-8 rounded-2xl border-2 border-slate-100 hover:border-indigo-500 hover:bg-indigo-50 transition-all text-center flex flex-col items-center gap-4"
+            >
+              <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
+                <Monitor size={32} />
+              </div>
+              <div>
+                <span className="block text-xl font-black text-slate-900 tracking-tight">Desktop View</span>
+                <span className="text-sm text-slate-500">Full management dashboard</span>
+              </div>
+            </button>
+          </div>
+          
+          <div className="mt-10 pt-6 border-t border-stone-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-xs shadow-sm">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt={user.displayName || ''} className="w-full h-full object-cover rounded-full" />
+                ) : (
+                  <span>{(user.displayName || user.email || 'U').charAt(0).toUpperCase()}</span>
+                )}
+              </div>
+              <span className="text-xs font-bold text-slate-600">{user.displayName || user.email}</span>
+            </div>
+            <button 
+              onClick={handleLogout}
+              className="text-xs font-black text-red-500 uppercase tracking-widest hover:text-red-600 transition-colors flex items-center gap-1.5"
+            >
+              <LogOut size={14} />
+              Logout
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
-      {/* Sticky Top Section */}
-      <div className="sticky top-0 z-40 shadow-sm">
+  return (
+    <div className={`min-h-screen transition-all duration-500 ${viewMode === 'mobile' ? 'bg-slate-200 flex items-center justify-center py-8' : 'bg-slate-50/50'}`}>
+      <div className={`font-sans text-slate-900 selection:bg-indigo-100 selection:text-indigo-900 transition-all duration-500 flex flex-col ${viewMode === 'mobile' ? 'w-full max-w-[430px] h-[850px] bg-white rounded-[3rem] border-[12px] border-slate-900 shadow-2xl overflow-hidden relative' : 'w-full min-h-screen'}`}>
+        {/* Top Activity Ticker */}
+        <RecentActivityTicker activities={activities} />
+
+        {/* Sticky Top Section */}
+        <div className={`sticky top-0 z-40 shadow-sm ${viewMode === 'mobile' ? 'shrink-0' : ''}`}>
         {/* Main Header */}
         <header className="bg-white border-b border-slate-200 relative">
           <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             {/* Logo & Search */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-8 flex-1">
-              <div className="flex items-center gap-4">
-                <div className="bg-indigo-600 w-14 h-14 hexagon flex items-center justify-center text-white shadow-xl shadow-indigo-100 shrink-0">
-                  <Truck size={28} className="animate-pulse" />
+              <div 
+                className="flex items-center gap-3 lg:gap-4 cursor-pointer active:scale-95 transition-transform"
+                onClick={() => setViewMode(null)}
+              >
+                <div className={`bg-indigo-600 ${viewMode === 'mobile' ? 'w-10 h-10' : 'w-14 h-14'} hexagon flex items-center justify-center text-white shadow-lg shadow-indigo-100 shrink-0`}>
+                  <Truck size={viewMode === 'mobile' ? 20 : 28} className="animate-pulse" />
                 </div>
                 <div>
                   <img 
                     src="https://lh3.googleusercontent.com/d/1Cd3dVNnqheL1GtcAgomBcyylCRw7s8x-" 
                     alt="Logo" 
-                    className="h-8 mb-2 object-contain"
+                    className={`${viewMode === 'mobile' ? 'h-5 mb-1' : 'h-8 mb-2'} object-contain`}
                     referrerPolicy="no-referrer"
                     crossOrigin="anonymous"
                   />
-                  <h1 className="text-2xl font-black tracking-tighter text-slate-900 leading-none">VEHICLE<span className="text-indigo-600">TRACKER</span></h1>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1.5">Logistics Intelligence</p>
+                  <h1 className={`${viewMode === 'mobile' ? 'text-lg' : 'text-2xl'} font-black tracking-tighter text-slate-900 leading-none`}>VEHICLE<span className="text-indigo-600">TRACKER</span></h1>
+                  <p className={`${viewMode === 'mobile' ? 'text-[8px] mt-1' : 'text-[10px] mt-1.5'} font-bold text-slate-400 uppercase tracking-[0.2em]`}>Logistics Intelligence</p>
                 </div>
               </div>
 
               {/* Status Summary in Header */}
-              <div className="hidden lg:flex items-center gap-2 xl:gap-4 ml-4 flex-wrap xl:flex-nowrap">
+              <div className={`${viewMode === 'mobile' ? 'hidden' : 'hidden lg:flex'} items-center gap-2 xl:gap-4 ml-4 flex-wrap xl:flex-nowrap`}>
                 {(() => {
                   const total = filteredVehicles.length;
                   const statusCounts = STATUS_FLOW.reduce((acc, status) => {
@@ -1348,7 +1424,14 @@ export default function App() {
 
             {/* User & Global Actions */}
             <div className="flex items-center gap-4 self-end lg:self-auto">
-              <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl">
+              <button
+                onClick={() => setViewMode(viewMode === 'mobile' ? 'desktop' : 'mobile')}
+                className="w-10 h-10 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all border border-indigo-100 shadow-sm"
+                title={viewMode === 'mobile' ? 'Switch to Desktop' : 'Switch to Mobile'}
+              >
+                {viewMode === 'mobile' ? <Monitor size={18} /> : <Smartphone size={18} />}
+              </button>
+              <div className={`flex items-center bg-slate-100 p-1.5 rounded-2xl ${viewMode === 'mobile' ? 'hidden' : ''}`}>
                 <button
                   onClick={() => setShowSummary(true)}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold hover:bg-white hover:shadow-sm transition-all text-slate-700 whitespace-nowrap"
@@ -1361,17 +1444,7 @@ export default function App() {
               <div className="h-10 w-px bg-slate-200 mx-1 hidden lg:block" />
 
               {user ? (
-                <div className="flex items-center gap-4 pl-2">
-                  <div className="text-right hidden sm:block">
-                    <p className="text-xs font-bold text-slate-900 leading-none">{user.displayName}</p>
-                    <p className="text-[10px] text-slate-400 font-medium mt-1.5">{user.email}</p>
-                  </div>
-                  <div className="relative">
-                    <div className="w-11 h-11 rounded-2xl bg-indigo-600 flex items-center justify-center text-white font-black text-sm shadow-lg shadow-indigo-100 border-2 border-white">
-                      {user.displayName?.charAt(0)}
-                    </div>
-                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full" />
-                  </div>
+                <div className="flex items-center gap-2">
                   <button
                     onClick={() => signOut(auth)}
                     className="w-11 h-11 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 transition-all border border-transparent hover:border-red-100"
@@ -1397,48 +1470,48 @@ export default function App() {
         {/* Controls Bar */}
         <div className="bg-slate-50/95 backdrop-blur-md border-b border-slate-200 pt-4 pb-4">
           <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+          <div className={`flex ${viewMode === 'mobile' ? 'flex-col' : 'flex-col lg:flex-row'} items-stretch lg:items-center justify-between gap-4`}>
             {/* Filters */}
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative min-w-[140px]">
+            <div className={`flex flex-wrap items-center gap-3 ${viewMode === 'mobile' ? 'grid grid-cols-2 w-full' : ''}`}>
+              <div className="relative">
                 <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                 <select
                   value={subFilter}
                   onChange={(e) => setSubFilter(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-9 pr-4 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none appearance-none transition-all"
+                  className="w-full bg-white border border-slate-200 rounded-xl py-3 pl-9 pr-4 text-[11px] font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none appearance-none transition-all shadow-sm"
                 >
                   {subOptions.map(opt => <option key={opt} value={opt}>{opt === 'All' ? 'All Subs' : opt}</option>)}
                 </select>
               </div>
 
-              <div className="relative min-w-[140px]">
+              <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                 <select
                   value={dateFilter}
                   onChange={(e) => setDateFilter(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-9 pr-4 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none appearance-none transition-all"
+                  className="w-full bg-white border border-slate-200 rounded-xl py-3 pl-9 pr-4 text-[11px] font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none appearance-none transition-all shadow-sm"
                 >
                   {dateOptions.map(opt => <option key={opt} value={opt}>{opt === 'All' ? 'All Dates' : opt}</option>)}
                 </select>
               </div>
 
-              <div className="relative min-w-[140px]">
+              <div className="relative">
                 <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                 <select
                   value={timeFilter}
                   onChange={(e) => setTimeFilter(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-9 pr-4 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none appearance-none transition-all"
+                  className="w-full bg-white border border-slate-200 rounded-xl py-3 pl-9 pr-4 text-[11px] font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none appearance-none transition-all shadow-sm"
                 >
                   {timeOptions.map(opt => <option key={opt} value={opt}>{opt === 'All' ? 'All Times' : opt}</option>)}
                 </select>
               </div>
 
-              <div className="relative min-w-[140px]">
+              <div className="relative">
                 <Activity className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-9 pr-4 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none appearance-none transition-all"
+                  className="w-full bg-white border border-slate-200 rounded-xl py-3 pl-9 pr-4 text-[11px] font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none appearance-none transition-all shadow-sm"
                 >
                   <option value="All">All Status</option>
                   <option value="Invoice Completed">Invoice Completed</option>
@@ -1446,12 +1519,12 @@ export default function App() {
                 </select>
               </div>
 
-              <div className="relative flex-1 lg:max-w-xs">
+              <div className={`relative ${viewMode === 'mobile' ? 'col-span-2' : 'flex-1 lg:max-w-xs'}`}>
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                 <input
                   type="text"
                   placeholder="Search..."
-                  className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-9 pr-4 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  className="w-full bg-white border border-slate-200 rounded-xl py-3 pl-9 pr-4 text-[11px] font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none transition-all shadow-sm"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -1459,7 +1532,7 @@ export default function App() {
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-3">
+            <div className={`flex items-center gap-3 ${viewMode === 'mobile' ? 'hidden' : ''}`}>
               <button
                 onClick={() => setShowAddModal(true)}
                 className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
@@ -2158,8 +2231,8 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
+      <main className={viewMode === 'mobile' ? 'flex-1 overflow-y-auto p-4' : 'max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8'}>
+        <div className={`grid gap-6 ${viewMode === 'mobile' ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'}`}>
           {loading ? (
             [...Array(8)].map((_, i) => (
               <div key={i} className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
@@ -2967,16 +3040,18 @@ export default function App() {
                       <div className="h-8 w-px bg-slate-200" />
 
                       <div className="flex flex-col">
-                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.3em]">IVC COMPLETED</span>
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.3em]">INVOICE COMPLETED</span>
                         <div className="text-4xl font-black text-emerald-600 tracking-tighter leading-none mb-2">
                           {(() => {
                             const activePlanGroups = [...new Set(monitorFilteredVehicles.map(v => `${v.deliveryDate}|${v.planLoad}`))].sort();
-                            if (activePlanGroups.length === 0) return 0;
+                            if (activePlanGroups.length === 0) return '0/0';
                             const safeIndex = currentRoundIndex % activePlanGroups.length;
                             const currentPlan = activePlanGroups[safeIndex];
-                            return monitorFilteredVehicles.filter(v => 
-                              `${v.deliveryDate}|${v.planLoad}` === currentPlan && v.invoiceCompleted
-                            ).length;
+                            const relevantVehicles = monitorFilteredVehicles.filter(v => 
+                              `${v.deliveryDate}|${v.planLoad}` === currentPlan
+                            );
+                            const completed = relevantVehicles.filter(v => v.invoiceCompleted).length;
+                            return `${completed}/${relevantVehicles.length}`;
                           })()}
                         </div>
                       </div>
@@ -3146,6 +3221,7 @@ export default function App() {
           );
         })()}
       </AnimatePresence>
+      </div>
     </div>
   );
 }
